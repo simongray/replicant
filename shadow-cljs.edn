@@ -11,4 +11,10 @@
   {:target :browser
    :modules {:main {:init-fn replicant.client/main}}
    :dev {:output-dir "dev-resources/public/client-js"}
-   :release {:output-dir "target/client-js"}}}}
+   :release {:output-dir "target/client-js"}}
+
+  :hydration
+  {:target :browser
+   :modules {:main {:init-fn replicant.hydration-demo/main}}
+   :dev {:output-dir "dev-resources/public/hydration-js"}
+   :release {:output-dir "target/hydration-js"}}}}

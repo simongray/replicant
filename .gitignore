@@ -12,3 +12,5 @@ dev-resources/public/domed/js
 /.shadow-cljs/
 /lib/
 /cljs-test-runner-out/
+/dev-resources/public/hydration-js/
+/target/
