@@ -4,6 +4,7 @@
             [replicant.core :as r]
             [replicant.env :as env]
             [replicant.errors :as errors]
+            [replicant.hydration :as hydration]
             [replicant.protocols :as replicant]
             [replicant.transition :as transition]))
 
@@ -236,6 +237,70 @@
           (when-let [pending (:queued (get @state el))]
             (js/requestAnimationFrame #(render el pending))
             (vswap! state update el dissoc :queued))))))
+  el)
+
+(defn ^:export hydrate
+  "Like `render`, but expects `el` to already contain the DOM that `hiccup`
+  renders to - typically the output of `replicant.string/render` called with
+  the same `hiccup` and the default `:indent`. Instead of building the DOM
+  from scratch, `hydrate` adopts the existing nodes, attaching event handlers
+  and life-cycle hooks to them. Mount hooks fire, while `:replicant/mounting`
+  transitions do not run.
+
+  Nodes that don't match the hiccup are replaced, and stray nodes (comments,
+  whitespace between elements, etc) are removed, leaving the DOM with the
+  structure and text of a fresh render - worst case by falling back to an
+  actual full render. Matching considers tag names and text only: attribute
+  differences on an otherwise matching node go undetected, so the server
+  really must render the same hiccup.
+
+  Update with `render` afterwards. Calling `hydrate` on an `el` already
+  managed by Replicant behaves like `render`."
+  [^js el hiccup & [{:keys [aliases alias-data] :as opt}]]
+  (if (contains? @state el)
+    (render el hiccup opt)
+    (let [renderer (create-renderer)
+          hydrator (hydration/create-renderer renderer el)
+          unmounts (volatile! #{})
+          unmount-hooks (volatile! (r/node-map))]
+      (vswap! state assoc el {:renderer renderer
+                              :unmounts unmounts
+                              :unmount-hooks unmount-hooks
+                              :rendering? true})
+      (let [aliases (or aliases (alias/get-registered-aliases))
+            ;; with-dev-key is a clj macro tied to the cljs compiler, which
+            ;; squint cannot expand, so the dev-key injection is skipped there
+            keyed-hiccup #?(:squint hiccup
+                            :default (if alias-data
+                                       (env/with-dev-key hiccup [aliases alias-data])
+                                       (env/with-dev-key hiccup aliases)))
+            vdom (try
+                   (let [{:keys [vdom]} (r/reconcile hydrator el keyed-hiccup nil
+                                                     {:unmounts unmounts
+                                                      :unmount-hooks unmount-hooks
+                                                      :aliases aliases
+                                                      :alias-data alias-data})]
+                     (hydration/sweep renderer el vdom)
+                     (when-let [issues (seq @(:issues hydrator))]
+                       (js/console.warn "Replicant hydration found DOM nodes that do not match the hiccup. Mismatching nodes have been replaced, but you should make sure the server renders the same hiccup the client hydrates."
+                                        (pr-str (vec issues))))
+                     vdom)
+                   (catch :default e
+                     (js/console.warn "Replicant could not hydrate the existing DOM, so it has been discarded and rendered from scratch. Make sure the server renders the same hiccup the client hydrates."
+                                      e)
+                     nil))]
+        (if vdom
+          (do
+            (vswap! state update el merge {:rendering? false :current vdom})
+            (when-let [pending (:queued (get @state el))]
+              (js/requestAnimationFrame #(render el pending))
+              (vswap! state update el dissoc :queued)))
+          ;; Fall back to a full render, so hydration is never worse than
+          ;; render. Structural mismatches throw from reconcile before any
+          ;; life-cycle hooks have been called.
+          (do
+            (vswap! state dissoc el)
+            (render el hiccup opt))))))
   el)
 
 (defn ^:export unmount

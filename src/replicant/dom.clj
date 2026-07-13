@@ -8,6 +8,12 @@
   rendered DOM by comparing `hiccup` to the previous `hiccup`."
   [el hiccup & [{:keys [aliases alias-data]}]])
 
+(defn ^:export hydrate
+  "Like `render`, but expects `el` to already contain the DOM that `hiccup`
+  renders to - typically the output of `replicant.string/render` called with
+  the same `hiccup`. Adopts the existing nodes instead of rebuilding them."
+  [el hiccup & [{:keys [aliases alias-data]}]])
+
 (defn ^:export unmount
   "Unmounts elements in `el`, and clears internal state."
   [el])

@@ -46,6 +46,20 @@ Or render to a string, either on the client or the JVM:
      "Posted February 26th 2025"]]])
 ```
 
+When a page arrives from the server as `replicant.string/render`-ed HTML, the
+client can adopt the existing DOM instead of rendering it from scratch. Call
+`hydrate` with the same hiccup the server rendered, and Replicant attaches
+event handlers and life-cycle hooks to the nodes already on the page - no
+flash, and text selection, scroll position and form input survive. Subsequent
+updates use `render` as usual:
+
+```clj
+(require '[replicant.dom :as r])
+
+(r/hydrate js/document.body (view initial-state))
+(r/render js/document.body (view new-state))
+```
+
 Learn more about using Replicant:
 
 - [Replicant user guide](https://replicant.fun/learn/)
@@ -161,6 +175,16 @@ do not want to read any part of your LLM chat logs.
 Do not open issues or pull requests with LLM generated text.
 
 ## Changelog
+
+### Unreleased
+
+New feature: `replicant.dom/hydrate` adopts DOM rendered server-side with
+`replicant.string/render` instead of rebuilding it, attaching event handlers
+and life-cycle hooks to the existing nodes. Mismatches between the DOM and the
+hiccup self-heal, worst case by falling back to a full render.
+
+Fix bug: `replicant.string/render` escaped double quotes to `&#39;` (an
+apostrophe) instead of `&quot;`.
 
 ### 2026.06.2
 
